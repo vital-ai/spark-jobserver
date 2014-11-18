@@ -3,6 +3,8 @@
 spark-jobserver provides a RESTful interface for submitting and managing [Apache Spark](http://spark-project.org) jobs, jars, and job contexts.
 This repo contains the complete Spark job server project, including unit tests and deploy scripts.
 
+See [Troubleshooting Tips](docs/troubleshooting.md).
+
 ## Features
 
 - *"Spark as a Service"*: Simple REST interface for all aspects of job, context management
@@ -21,6 +23,7 @@ This repo contains the complete Spark job server project, including unit tests a
 |-------------|---------------|
 | 0.3.1       | 0.9.1         |
 | 0.4.0       | 1.0.2         |
+| 0.4.1       | 1.1.0         |
 
 For release notes, look in the `notes/` directory.  They should also be up on [ls.implicit.ly](http://ls.implicit.ly/spark-jobserver/spark-jobserver).
 
