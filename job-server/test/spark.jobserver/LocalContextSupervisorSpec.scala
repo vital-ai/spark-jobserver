@@ -3,11 +3,10 @@ package spark.jobserver
 import akka.actor._
 import akka.testkit.{TestKit, ImplicitSender}
 import com.typesafe.config.ConfigFactory
-import org.scalatest.time.Second
-import spark.jobserver.io.JobDAO
-import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter}
+import spark.jobserver.io.{JobDAOActor, JobDAO}
+import org.scalatest.{Matchers, FunSpecLike, BeforeAndAfterAll, BeforeAndAfter}
+
+import scala.concurrent.duration._
 
 
 object LocalContextSupervisorSpec {
@@ -20,16 +19,22 @@ object LocalContextSupervisorSpec {
       }
       jobserver.job-result-cache-size = 100
       jobserver.context-creation-timeout = 5 s
-      jobserver.context-factory = spark.jobserver.util.DefaultSparkContextFactory
+      jobserver.yarn-context-creation-timeout = 40 s
       contexts {
         olap-demo {
           num-cpu-cores = 4
           memory-per-node = 512m
         }
       }
+
       context-settings {
         num-cpu-cores = 2
         memory-per-node = 512m
+        context-factory = spark.jobserver.context.DefaultSparkContextFactory
+        passthrough {
+          spark.driver.allowMultipleContexts = true
+          spark.ui.enabled = false
+        }
       }
     }
     akka.log-dead-letters = 0
@@ -39,7 +44,7 @@ object LocalContextSupervisorSpec {
 }
 
 class LocalContextSupervisorSpec extends TestKit(LocalContextSupervisorSpec.system) with ImplicitSender
-    with FunSpec with ShouldMatchers with BeforeAndAfter with BeforeAndAfterAll {
+    with FunSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll {
 
   override def afterAll() {
     ooyala.common.akka.AkkaTestUtils.shutdownAndWait(LocalContextSupervisorSpec.system)
@@ -47,6 +52,7 @@ class LocalContextSupervisorSpec extends TestKit(LocalContextSupervisorSpec.syst
 
   var supervisor: ActorRef = _
   var dao: JobDAO = _
+  var daoActor: ActorRef = _
 
   val contextConfig = LocalContextSupervisorSpec.config.getConfig("spark.context-settings")
 
@@ -55,7 +61,8 @@ class LocalContextSupervisorSpec extends TestKit(LocalContextSupervisorSpec.syst
 
   before {
     dao = new InMemoryDAO
-    supervisor = system.actorOf(Props(classOf[LocalContextSupervisorActor], dao))
+    daoActor = system.actorOf(JobDAOActor.props(dao))
+    supervisor = system.actorOf(Props(classOf[LocalContextSupervisorActor], daoActor))
   }
 
   after {
@@ -72,26 +79,26 @@ class LocalContextSupervisorSpec extends TestKit(LocalContextSupervisorSpec.syst
 
     it("can add contexts from jobConfig") {
       supervisor ! AddContextsFromConfig
-      Thread sleep 2000
+      Thread sleep 4000
       supervisor ! ListContexts
-      expectMsg(Seq("olap-demo"))
+      expectMsg(40 seconds, Seq("olap-demo"))
     }
 
     it("should be able to add multiple new contexts") {
+      // serializing the creation at least until SPARK-2243 gets
+      // solved.
       supervisor ! AddContext("c1", contextConfig)
-      supervisor ! AddContext("c2", contextConfig)
       expectMsg(ContextInitialized)
+      supervisor ! AddContext("c2", contextConfig)
       expectMsg(ContextInitialized)
       supervisor ! ListContexts
       expectMsg(Seq("c1", "c2"))
       supervisor ! GetResultActor("c1")
       val rActor = expectMsgClass(classOf[ActorRef])
-      rActor.path.toString should endWith ("result-actor")
       rActor.path.toString should not include ("global")
     }
 
     it("should be able to stop contexts already running") {
-      import scala.concurrent.duration._
       supervisor ! AddContext("c1", contextConfig)
       expectMsg(ContextInitialized)
       supervisor ! ListContexts

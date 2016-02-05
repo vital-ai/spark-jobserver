@@ -2,16 +2,16 @@ package spark.jobserver
 
 import akka.actor.{Props, ActorRef, ActorSystem}
 import akka.testkit.{TestKit, ImplicitSender}
-import org.scalatest.{FunSpec, BeforeAndAfter, BeforeAndAfterAll}
-import org.scalatest.matchers.ShouldMatchers
-import spark.jobserver.io.JobDAO
+import org.scalatest.{FunSpecLike, BeforeAndAfter, BeforeAndAfterAll, Matchers}
+
+import spark.jobserver.io.{JobDAOActor, JobDAO}
 
 object JobInfoActorSpec {
   val system = ActorSystem("test")
 }
 
 class JobInfoActorSpec extends TestKit(JobInfoActorSpec.system) with ImplicitSender
-with FunSpec with ShouldMatchers with BeforeAndAfter with BeforeAndAfterAll {
+with FunSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll {
 
   import com.typesafe.config._
   import CommonMessages.NoSuchJobId
@@ -26,10 +26,13 @@ with FunSpec with ShouldMatchers with BeforeAndAfter with BeforeAndAfterAll {
 
   var actor: ActorRef = _
   var dao: JobDAO = _
+  var daoActor: ActorRef = _
 
   before {
     dao = new InMemoryDAO
-    actor = system.actorOf(Props(classOf[JobInfoActor], dao, system.actorOf(Props(classOf[LocalContextSupervisorActor], dao))))
+    daoActor = system.actorOf(JobDAOActor.props(dao))
+    val supervisor = system.actorOf(Props(classOf[LocalContextSupervisorActor], daoActor))
+    actor = system.actorOf(Props(classOf[JobInfoActor], dao, supervisor))
   }
 
   after {

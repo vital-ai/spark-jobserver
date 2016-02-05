@@ -20,6 +20,7 @@ object JsonUtils {
       case f: Float => JsNumber(f.toDouble)
       case s: String => JsString(s)
       case x: Seq[_] => seqFormat[Any].write(x)
+      case m: Map[_, _] if m.isEmpty => JsObject(Map[String, JsValue]())
       // Get the type of map keys from the first key, translate the rest the same way
       case m: Map[_, _] => m.keys.head match {
         case sym: Symbol =>
@@ -60,7 +61,7 @@ object JsonUtils {
     if (compact) jsonAst.compactPrint else jsonAst.prettyPrint
   }
 
-  def mapFromJson(json: String): Map[String, Any] = json.asJson.convertTo[Map[String, Any]]
+  def mapFromJson(json: String): Map[String, Any] = json.parseJson.convertTo[Map[String, Any]]
 
-  def listFromJson(json: String): Seq[Any] = json.asJson.convertTo[Seq[Any]]
+  def listFromJson(json: String): Seq[Any] = json.parseJson.convertTo[Seq[Any]]
 }

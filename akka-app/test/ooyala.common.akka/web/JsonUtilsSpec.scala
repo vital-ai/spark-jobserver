@@ -1,11 +1,10 @@
 package ooyala.common.akka.web
 
 import org.joda.time.DateTime
-import org.parboiled.errors.ParsingException
-import org.scalatest.FunSpec
-import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.{Matchers, FunSpec}
+import spray.json.JsonParser.ParsingException
 
-class JsonUtilsSpec extends FunSpec with ShouldMatchers {
+class JsonUtilsSpec extends FunSpec with Matchers {
   import spray.json._
   import spray.json.DefaultJsonProtocol._
 
@@ -27,6 +26,30 @@ class JsonUtilsSpec extends FunSpec with ShouldMatchers {
       val batch = Seq(Map(Dt2 -> Map("ipaddr" -> "1.2.3.5")),
                       Map(Dt1 -> Map("guid" -> "abc")))
       JsonUtils.listFromJson(json) should equal (batch)
+    }
+
+    it("should serialize an empty map to JSON") {
+      val expected = """{}"""
+      import JsonUtils._
+      Map[String, Any]().toJson.compactPrint should equal (expected)
+    }
+
+    it("should serialize first-level empty maps to JSON") {
+      val expected = """{"a":1,"b":{}}"""
+      import JsonUtils._
+      Map("a" -> 1, "b" -> Map.empty).toJson.compactPrint should equal (expected)
+    }
+
+    it("should serialize second-level empty maps to JSON") {
+      val expected = """{"a":1,"b":{"a1":1,"b1":{}}}"""
+      import JsonUtils._
+      Map("a" -> 1, "b" -> Map("a1" -> 1, "b1" -> Map.empty)).toJson.compactPrint should equal (expected)
+    }
+
+    it("should serialize third-level empty maps to JSON") {
+      val expected = """{"a":1,"b":{"a1":1,"b1":{"a2":1,"b2":{}}}}"""
+      import JsonUtils._
+      Map("a" -> 1, "b" -> Map("a1" -> 1, "b1" -> Map("a2" -> 1, "b2" -> Map.empty))).toJson.compactPrint should equal (expected)
     }
 
     it("should serialize some other types") {
